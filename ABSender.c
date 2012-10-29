@@ -20,8 +20,6 @@
  */
 
 
-#define AP_AB_BASEREVISION "2.3"
-
 /*  -------------------------------------------------------------------- */
 
 #if 'A' != 0x41
@@ -1615,7 +1613,7 @@ static void test(void)
 
     if (!opt_useragent) {
         /* User-Agent: header not overridden, add default value to hdrs */
-        hdrs = apr_pstrcat(cntxt, hdrs, "User-Agent: ApacheBench/", AP_AB_BASEREVISION, "\r\n", NULL);
+        hdrs = apr_pstrcat(cntxt, hdrs, "User-Agent: ABSender/", "\r\n", NULL);
     }
     else {
         /* Header overridden, no need to add, as it is already in hdrs */
