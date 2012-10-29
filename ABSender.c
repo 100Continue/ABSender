@@ -8,7 +8,7 @@
  */
 
  /*
-   ** BUG Fix(Segmentation Fault):
+   ** BUG Fixed(Segmentation Fault):
    ** When ApacheBench Sorted on total connect times, would cause
    ** writing off the end of the stats array and report Segmentation
    ** Fault. for detail you can visit "http://100continue.iteye.com/blog/1337347"
@@ -275,9 +275,12 @@ typedef struct {
     int    extent;
 }scope_t;
 
-/* to store the range info likes: pre[1-1000]middle[20-30]after, 
-    pre: pre  scope_s[0] = {min:1 extent:999 content:middle}
-    scope_s[1] = {min:1 extent:999 content:0}  after: after */
+/* to store the range info likes: pre[1-1000]middle1[20-30]middle2[7-10]after, 
+    pre: pre  
+    scope_s[0] = {min:1 extent:999 content:middle1}
+    scope_s[1] = {min:20 extent:10 content:middle2}  
+    scope_s[2] = {min:7 extent:3 content:\0} 
+    after: after */
 typedef struct {            
     char *pre;
     scope_t scope_s[_MAX];
