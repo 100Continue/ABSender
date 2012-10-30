@@ -2085,7 +2085,14 @@ static range_t *parseRange(file_t input_file){
                                         strcpy(parse_s[index].scope_s[rangeNum].content, p);
                                         parse_s[index].scope_s[rangeNum].content[p_len + 1] = '0';
                                 }
+                        }else{
+                            parse_s[index].scope_s[rangeNum].content = (char *)malloc(1);
+                            memset(parse_s[index].scope_s[rangeNum].content, 0, sizeof(parse_s[index].scope_s[rangeNum].content));
+                            
+                            parse_s[index].after = (char *)malloc(1);
+                            memset(parse_s[index].after, 0, sizeof(parse_s[index].after));
                         }
+                        
                         rangeNum++;
                 }
                 parse_s[index].count = rangeNum;
