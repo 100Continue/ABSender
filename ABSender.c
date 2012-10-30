@@ -2012,95 +2012,93 @@ static void set_request()
 /* parse the range info  --- edit by ChenZhen(gongyuan.cz) --- start */
 
 static range_t *parseRange(file_t input_file){
-        int index = 0;
-        range_t *parse_s = (range_t*)malloc((input_file.count + 1) * sizeof(range_t));
+    int index = 0;
+    range_t *parse_s = (range_t*)malloc((input_file.count + 1) * sizeof(range_t));
 
-        while(index < input_file.count){
-                char *p;
-                int rangeNum = 0;
-                int p_len = 0;
-                int content_len = 0;
-                
-                if(input_file.content[index] == NULL){
-                        perror("input range value is NULL");
-                        exit(1);
-                }
-                content_len = strlen(input_file.content[index]);
-                p = strtok(input_file.content[index], "[");
-                p_len = strlen(p);
-                if(p != NULL &&  p_len != content_len){
-                        content_len = content_len - (p_len+1);
-                        parse_s[index].pre = (char *)malloc(p_len+1);
-                        strcpy(parse_s[index].pre, p);
-                        parse_s[index].pre[p_len+1] = '0';
-
-                }else{
-                        parse_s[index].pre = (char *)malloc(p_len+1);
-                        strcpy(parse_s[index].pre, p);
-                        parse_s[index].pre[p_len+1] = '0';
-
-                        parse_s[index].after = (char *)malloc(1);
-                        memset(parse_s[index].after, 0, sizeof(parse_s[index].after));
-
-                        parse_s[index].count = rangeNum;
-
-                        index ++;
-                        continue;
-                }
-                while(p != NULL && content_len > 0){
-                        p = strtok(NULL, "-");
-                        if(p != NULL){
-                                p_len = strlen(p);
-                                content_len = content_len - (p_len + 1);
-                                parse_s[index].scope_s[rangeNum].min = atoi(p);
-                        }else{
-                                perror("parse input range error");
-                                exit(1);
-                        }
-
-                        p = strtok(NULL, "]");
-                        if(p != NULL){
-                                p_len = strlen(p);
-                                content_len = content_len - (p_len + 1);                                
-                                parse_s[index].scope_s[rangeNum].extent = atoi(p) - parse_s[index].scope_s[rangeNum].min;
-                        }else{
-                                perror("parse input range error");
-                                exit(1);
-                        }
-
-                        p = strtok(NULL, "[");
-                        if (p != NULL) {
-                                p_len = strlen(p);
-                                content_len = content_len - (p_len + 1);
-                                
-                                if(content_len <= 0){
-                                        parse_s[index].after = (char *)malloc(p_len + 1);
-                                        strcpy(parse_s[index].after, p);
-                                        parse_s[index].after[p_len + 1] = '0';
-                                        
-                                        parse_s[index].scope_s[rangeNum].content = (char *)malloc(1);
-                                        memset(parse_s[index].scope_s[rangeNum].content, 0, sizeof(parse_s[index].scope_s[rangeNum].content));
-                                }else{
-                                        parse_s[index].scope_s[rangeNum].content = (char *)malloc(p_len + 1);
-                                        strcpy(parse_s[index].scope_s[rangeNum].content, p);
-                                        parse_s[index].scope_s[rangeNum].content[p_len + 1] = '0';
-                                }
-                        }else{
-                            parse_s[index].scope_s[rangeNum].content = (char *)malloc(1);
-                            memset(parse_s[index].scope_s[rangeNum].content, 0, sizeof(parse_s[index].scope_s[rangeNum].content));
-                            
-                            parse_s[index].after = (char *)malloc(1);
-                            memset(parse_s[index].after, 0, sizeof(parse_s[index].after));
-                        }
-                        
-                        rangeNum++;
-                }
-                parse_s[index].count = rangeNum;
-
-                index++;
+    while(index < input_file.count){
+        char *p;
+        int rangeNum = 0;
+        int p_len = 0;
+        int content_len = 0;
+            
+        if(input_file.content[index] == NULL){
+            perror("input range value is NULL");
+            exit(1);
         }
-        
-        return parse_s;
+        content_len = strlen(input_file.content[index]);
+        p = strtok(input_file.content[index], "[");
+        p_len = strlen(p);
+        if(p != NULL &&  p_len != content_len){
+            content_len = content_len - (p_len+1);
+            parse_s[index].pre = (char *)malloc(p_len+1);
+            strcpy(parse_s[index].pre, p);
+            parse_s[index].pre[p_len+1] = '0';
+        }else{
+            parse_s[index].pre = (char *)malloc(p_len+1);
+            strcpy(parse_s[index].pre, p);
+            parse_s[index].pre[p_len+1] = '0';
+
+            parse_s[index].after = (char *)malloc(1);
+            memset(parse_s[index].after, 0, sizeof(parse_s[index].after));
+
+            parse_s[index].count = rangeNum;
+
+            index ++;
+            continue;
+        }
+        while(p != NULL && content_len > 0){
+            p = strtok(NULL, "-");
+            if(p != NULL){
+                p_len = strlen(p);
+                content_len = content_len - (p_len + 1);
+                parse_s[index].scope_s[rangeNum].min = atoi(p);
+            }else{
+                perror("parse input range error");
+                exit(1);
+            }
+
+            p = strtok(NULL, "]");
+            if(p != NULL){
+                p_len = strlen(p);
+                content_len = content_len - (p_len + 1);                                
+                parse_s[index].scope_s[rangeNum].extent = atoi(p) - parse_s[index].scope_s[rangeNum].min;
+            }else{
+                perror("parse input range error");
+                exit(1);
+            }
+
+            p = strtok(NULL, "[");
+            if (p != NULL) {
+                p_len = strlen(p);
+                content_len = content_len - (p_len + 1);
+                               
+                if(content_len <= 0){
+                    parse_s[index].after = (char *)malloc(p_len + 1);
+                    strcpy(parse_s[index].after, p);
+                    parse_s[index].after[p_len + 1] = '0';
+                                       
+                    parse_s[index].scope_s[rangeNum].content = (char *)malloc(1);
+                    memset(parse_s[index].scope_s[rangeNum].content, 0, sizeof(parse_s[index].scope_s[rangeNum].content));
+                }else{
+                    parse_s[index].scope_s[rangeNum].content = (char *)malloc(p_len + 1);
+                    strcpy(parse_s[index].scope_s[rangeNum].content, p);
+                    parse_s[index].scope_s[rangeNum].content[p_len + 1] = '0';
+                }
+            }else{
+                parse_s[index].scope_s[rangeNum].content = (char *)malloc(1);
+                memset(parse_s[index].scope_s[rangeNum].content, 0, sizeof(parse_s[index].scope_s[rangeNum].content));
+                           
+                parse_s[index].after = (char *)malloc(1);
+                memset(parse_s[index].after, 0, sizeof(parse_s[index].after));
+            }
+                      
+            rangeNum++;
+        }
+        parse_s[index].count = rangeNum;
+        index++;
+    }
+       
+    return parse_s;
 }
 
 /* parse the range info  --- edit by ChenZhen(gongyuan.cz) --- end */
