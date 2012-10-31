@@ -2115,8 +2115,7 @@ static char* assemble(range_t *range, int num){
     offset += sprintf(range_s + offset, "%s", range[index].pre);
     
     for(; i < count; i++){
-        offset += sprintf(range_s + offset, "%d", range[index].scope_s[i].min + (random() % range[index].scope_s[i].extent));
-        offset += sprintf(range_s + offset, "%s", range[index].scope_s[i].content);
+        offset += sprintf(range_s + offset, "%d%s", range[index].scope_s[i].min + (random() % range[index].scope_s[i].extent), range[index].scope_s[i].content);
     }
     
     offset += sprintf(range_s + offset, "%s", range[index].after);
@@ -2139,7 +2138,7 @@ static file_t read_file(const char *file)
         
     FILE * in = fopen(file, "r");
     if (!in) {
-        perror("Cannot open path file");
+        perror("Cannot open file");
         exit(1);
     }
     // count the file size
@@ -2165,7 +2164,7 @@ static file_t read_file(const char *file)
         file_info.count = atoi(dataline);
         file_info.content = (char**)malloc((file_info.count + 1) * sizeof(char *));
         if(file_info.content == NULL){
-            perror("Malloc path name error");
+            perror("Malloc file info content error");
             exit(1);
         }
             
