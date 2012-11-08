@@ -62,11 +62,11 @@
 #if APR_HAVE_UNISTD_H
 #include <unistd.h> /* for getpid() */
 #endif
-
+/*
 #if !defined(WIN32) && !defined(NETWARE)
 #include "ap_config_auto.h"
 #endif
-
+*/
 #if defined(HAVE_SSLC)
 
 /* Libraries for RSA SSL-C */
