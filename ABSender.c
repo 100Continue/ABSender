@@ -1391,7 +1391,11 @@ static void read_connection(struct connection * c)
                 }
                 return;
             } else {
-                apr_err("apr_socket_recv", status);
+            /* Set connection timed out solution --- edit by ChenZhen(gongyuan.cz)  */
+                bad++;
+                close_connection(c);
+                //apr_err("apr_socket_recv", status);
+            /* Set connection timed out solution --- edit by ChenZhen(gongyuan.cz)  */
             }
         }
     }
