@@ -1830,7 +1830,8 @@ static void usage(const char *progname)
     fprintf(stderr, "    -n requests         Number of requests to perform\n");
     fprintf(stderr, "    -c concurrency      Number of multiple requests to make\n");
     fprintf(stderr, "    -t timelimit        Seconds to max. wait for responses\n");
-    fprintf(stderr, "    -b windowsize       Size of TCP send/receive buffer, in bytes\n");
+    fprintf(stderr, "    -s timeout      Seconds to max. wait for each response\n");
+	fprintf(stderr, "    -b windowsize       Size of TCP send/receive buffer, in bytes\n");
     fprintf(stderr, "    -p postfile         File containing data to POST. Remember also to set -T\n");
     fprintf(stderr, "    -u putfile          File containing data to PUT. Remember also to set -T\n");
     fprintf(stderr, "    -T content-type     Content-type header for POSTing, eg.\n");
@@ -2287,7 +2288,7 @@ int main(int argc, const char * const argv[])
 
     apr_getopt_init(&opt, cntxt, argc, argv);
     /* --- edit by ChenZhen(gongyuan.cz) */
-    while ((status = apr_getopt(opt, "J:j:O:o:L:l:Y:R:n:c:t:b:T:p:u:v:rMkVhwiDx:y:z:C:H:P:A:g:X:de:Sq"
+    while ((status = apr_getopt(opt, "J:j:O:o:L:l:Y:R:n:c:t:s:b:T:p:u:v:rMkVhwiDx:y:z:C:H:P:A:g:X:de:Sq"
 #ifdef USE_SSL
             "Z:f:"
 #endif
@@ -2392,7 +2393,10 @@ int main(int argc, const char * const argv[])
             case 'S':
                 confidence = 0;
                 break;
-            case 'p':
+            case 's':
+                aprtimeout = apr_time_from_sec(atoi(optarg)); /* timeout value */
+                break;
+			case 'p':
                 if (posting != 0)
                     err("Cannot mix POST and HEAD\n");
                 if (0 == (r = open_postfile(optarg))) {
