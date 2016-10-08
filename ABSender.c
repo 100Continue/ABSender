@@ -1,7 +1,6 @@
 /*
    ** This ABSender is based on ApacheBench modify by ChenZhen 
-   ** (alias name is GongYuan.CZ in TaoBao corp)
-   ** email: gongyuan.cz@taobao.com or 100continue@sina.com
+   ** email: 100continue@sina.com
    ** Link : http://100continue.iteye.com/
    **
    **
@@ -244,8 +243,11 @@ int err_conn = 0;          /* requests failed due to connection drop */
 int err_recv = 0;          /* requests failed due to broken read */
 int err_except = 0;        /* requests failed due to exception */
 int err_response = 0;      /* requests with invalid or non-200 response */
+int err_response_3 = 0;    /* requests with 3XX response */
+int err_response_4 = 0;    /* requests with 4XX response */
+int err_response_5 = 0;    /* requests with 5XX response */
 
-/* --- --- edit by ChenZhen(gongyuan.cz) start --- */
+/* --- --- edit by ChenZhen(100Continue) start --- */
 #define _MAX 20
 int countTimes = 1;            /* user opt to decide whether calculate the connection times and 
                                 percentage of the request served within a certain time or not*/
@@ -256,6 +258,7 @@ int is_path_range = 0;      /* flag to identify use Range Mode or not*/
 int is_cookie_range = 0;
 int is_header_range = 0;
 int is_post_range = 0;
+int is_range_in_order = 0;  /* flag to identify request use range in order */
 
 typedef struct {            /* to store the info read from file*/
     char **content;
@@ -268,11 +271,12 @@ file_t header_file_s;
 file_t multi_post_file_s;
 
 /* to store the scope likes: pre[1-1000]middle[20-30]after, 
-    min:1 extent:999 content:middle */
+    min:1 extent:999 current:1(equals to min) content:middle */
 typedef struct {            
     char *content;
     int    min;
     int    extent;
+	int    current;
 }scope_t;
 
 /* to store the range info likes: pre[1-1000]middle1[20-30]middle2[7-10]after, 
@@ -295,7 +299,7 @@ range_t *cookie_range_s = NULL;
 range_t *header_range_s = NULL;
 
 char _request[20480000UL];
-/* --- edit by ChenZhen(gongyuan.cz) end ----- */
+/* --- edit by ChenZhen(100Continue) end ----- */
 
 #ifdef USE_SSL
 int is_ssl;
@@ -329,12 +333,13 @@ apr_sockaddr_t *destsa;
 #ifdef NOT_ASCII
 apr_xlate_t *from_ascii, *to_ascii;
 #endif
-/* --- edit by ChenZhen(gongyuan.cz) start --- */
+/* --- edit by ChenZhen(100Continue) start --- */
 static void set_request();
 static file_t read_file(const char *file);
 static char* assemble(range_t *range, int num);
+static char* assembleInOrder(range_t *range, int num);
 static range_t *parseRange(file_t input_file);
-/* --- edit by ChenZhen(gongyuan.cz) end --- */
+/* --- edit by ChenZhen(100Continue) end --- */
 
 static void write_request(struct connection * c);
 static void close_connection(struct connection * c);
@@ -598,11 +603,15 @@ static void ssl_proceed_handshake(struct connection *c)
 
 static void write_request(struct connection * c)
 {
-    /* --- edit by ChenZhen(gongyuan.cz) start --- */
+    /* --- edit by ChenZhen(100Continue) start --- */
     /* set path */
     if(path_file_s.count != 0){    
         if(is_path_range == 1){
-            path = apr_pstrcat(cntxt, assemble(path_range_s, path_file_s.count), NULL);
+			if(is_range_in_order == 1){
+				path = apr_pstrcat(cntxt, assembleInOrder(path_range_s, path_file_s.count), NULL);
+			}else{
+				path = apr_pstrcat(cntxt, assemble(path_range_s, path_file_s.count), NULL);
+			}
         }else{
             path = apr_pstrcat(cntxt, path_file_s.content[random() % path_file_s.count], NULL);
         }
@@ -615,7 +624,11 @@ static void write_request(struct connection * c)
     /* set cookie */
     if(cookie_file_s.count != 0){
         if(is_cookie_range == 1){
-            cookie = apr_pstrcat(cntxt, "Cookie: ", assemble(cookie_range_s, cookie_file_s.count), "\r\n", NULL);
+			if(is_range_in_order == 1){
+				cookie = apr_pstrcat(cntxt, "Cookie: ", assembleInOrder(cookie_range_s, cookie_file_s.count), "\r\n", NULL);
+			}else{
+				cookie = apr_pstrcat(cntxt, "Cookie: ", assemble(cookie_range_s, cookie_file_s.count), "\r\n", NULL);
+			}
         }else{
             cookie = apr_pstrcat(cntxt, "Cookie: ", cookie_file_s.content[random() % cookie_file_s.count], "\r\n", NULL);
         }
@@ -624,7 +637,11 @@ static void write_request(struct connection * c)
     /* set header */
     if(header_file_s.count != 0){
         if(is_header_range == 1){
-            hdrs_cp = apr_pstrcat(cntxt, hdrs, assemble(header_range_s, header_file_s.count), "\r\n", NULL);
+			if(is_range_in_order == 1){
+				hdrs_cp = apr_pstrcat(cntxt, hdrs, assembleInOrder(header_range_s, header_file_s.count), "\r\n", NULL);
+			}else{
+				hdrs_cp = apr_pstrcat(cntxt, hdrs, assemble(header_range_s, header_file_s.count), "\r\n", NULL);
+			}     
         }else{
             hdrs_cp = apr_pstrcat(cntxt, hdrs, header_file_s.content[random() % header_file_s.count], "\r\n", NULL);
         }
@@ -633,7 +650,11 @@ static void write_request(struct connection * c)
     /* set post info */
     if(multi_post_file_s.count != 0){
         if(is_post_range == 1){
-            postdata = apr_pstrcat(cntxt, assemble(post_range_s, multi_post_file_s.count), NULL);
+           if(is_range_in_order == 1){
+				postdata = apr_pstrcat(cntxt, assembleInOrder(post_range_s, multi_post_file_s.count), NULL);
+			}else{
+				postdata = apr_pstrcat(cntxt, assemble(post_range_s, multi_post_file_s.count), NULL);
+			}
         }else{
             postdata = apr_pstrcat(cntxt, multi_post_file_s.content[random() % multi_post_file_s.count], NULL);    
         }
@@ -645,7 +666,7 @@ static void write_request(struct connection * c)
     if(0 != path_file_s.count || 0 != cookie_file_s.count || 0 != header_file_s.count || 0 != multi_post_file_s.count){
         set_request();
     }
-    /* --- edit by ChenZhen(gongyuan.cz) end --- */
+    /* --- edit by ChenZhen(100Continue) end --- */
     
     do {
         apr_time_t tnow;
@@ -789,6 +810,12 @@ static void output_results(int sig)
     printf("Write errors:           %d\n", epipe);
     if (err_response)
         printf("Non-2xx responses:      %d\n", err_response);
+	if (err_response_3)
+		printf("3xx responses:      %d\n", err_response_3);
+	if (err_response_4)
+		printf("4xx responses:      %d\n", err_response_4);
+	if (err_response_5)
+		printf("5xx responses:      %d\n", err_response_5);
     if (keepalive)
         printf("Keep-Alive requests:    %d\n", doneka);
     printf("Total transferred:      %" APR_INT64_T_FMT " bytes\n", totalread);
@@ -816,7 +843,7 @@ static void output_results(int sig)
         }
     }
 
-    /* --- edit by ChenZhen(gongyuan.cz) --- 1 == countTimes */
+    /* --- edit by ChenZhen(100Continue) --- 1 == countTimes */
     if (done > 0 && 1 == countTimes) {
         /* work out connection times */
         int i;
@@ -1391,11 +1418,11 @@ static void read_connection(struct connection * c)
                 }
                 return;
             } else {
-            /* Set connection timed out solution --- edit by ChenZhen(gongyuan.cz)  */
+            /* Set connection timed out solution --- edit by ChenZhen(100Continue)  */
                 bad++;
                 close_connection(c);
                 //apr_err("apr_socket_recv", status);
-            /* Set connection timed out solution --- edit by ChenZhen(gongyuan.cz)  */
+            /* Set connection timed out solution --- edit by ChenZhen(100Continue)  */
             }
         }
     }
@@ -1495,6 +1522,14 @@ static void read_connection(struct connection * c)
 
             if (respcode[0] != '2') {
                 err_response++;
+				if (respcode[0] == '3')
+					err_response_3++;
+				if (respcode[0] == '4')
+					err_response_4++;
+				if (respcode[0] == '5')
+					err_response_5++;
+				if (verbosity >= 1)
+					printf("WARNING: Response code not 2xx (%s)\n", respcode);
                 if (verbosity >= 2)
                     printf("WARNING: Response code not 2xx (%s)\n", respcode);
             }
@@ -1634,10 +1669,10 @@ static void test(void)
         /* Header overridden, no need to add, as it is already in hdrs */
     }
     
-/* set request start, --- edit by ChenZhen(gongyuan.cz)  */    
+/* set request start, --- edit by ChenZhen(100Continue)  */    
     /* setup request */
     set_request();
-/* set request end, --- edit by ChenZhen(gongyuan.cz)  */
+/* set request end, --- edit by ChenZhen(100Continue)  */
 
 
     /* This only needs to be done once */
@@ -1792,7 +1827,7 @@ static void copyright(void)
 {
     if (!use_html) {
         printf("This ABSender is based on ApacheBench modify by ChenZhen \n");
-        printf("email: gongyuan.cz@taobao.com or 100continue@sina.com\n");
+        printf("email: chenz1@chinanetcenter.com or 396124876@qq.com\n");
         printf("Link : http://100continue.iteye.com/\n");
         printf("github: https://github.com/100Continue/ABSender\n");
         printf("\n");
@@ -1800,7 +1835,7 @@ static void copyright(void)
     else {
         printf("<p>\n");
         printf("This ABSender is based on ApacheBench modify by ChenZhen \n");
-        printf("email: gongyuan.cz@taobao.com or 100continue@sina.com\n");
+        printf("email: chenz1@chinanetcenter.com or 396124876@qq.com\n");
         printf("Link : http://100continue.iteye.com/\n");
         printf("github: https://github.com/100Continue/ABSender\n");
         printf("</p>\n<p>\n");
@@ -1826,11 +1861,12 @@ static void usage(const char *progname)
     fprintf(stderr, "    -l headerfile       File containing data in request header and in Range Mode\n");
     fprintf(stderr, "    -Y multipostfile    File containing mulit post data to POST\n");
     fprintf(stderr, "    -R multipostfile    File containing mulit post data to POST and in Range Mode\n");
+	fprintf(stderr, "    -a                  send request use range mode in order\n");
     fprintf(stderr, "    -M                  Do not show connection times and percentage of the request served within a certain time.\n");
     fprintf(stderr, "    -n requests         Number of requests to perform\n");
     fprintf(stderr, "    -c concurrency      Number of multiple requests to make\n");
     fprintf(stderr, "    -t timelimit        Seconds to max. wait for responses\n");
-    fprintf(stderr, "    -s timeout      Seconds to max. wait for each response\n");
+    fprintf(stderr, "    -s timeout          Seconds to max. wait for each response\n");
 	fprintf(stderr, "    -b windowsize       Size of TCP send/receive buffer, in bytes\n");
     fprintf(stderr, "    -p postfile         File containing data to POST. Remember also to set -T\n");
     fprintf(stderr, "    -u putfile          File containing data to PUT. Remember also to set -T\n");
@@ -1944,7 +1980,7 @@ static int parse_url(char *url)
 
 /* ------------------------------------------------------- */
 
-/* set request info  --- edit by ChenZhen(gongyuan.cz) --- start */
+/* set request info  --- edit by ChenZhen(100Continue) --- start */
 
 static void set_request()
 {
@@ -2011,10 +2047,10 @@ static void set_request()
 
 }
 
-/* set request info  --- edit by ChenZhen(gongyuan.cz) --- end */
+/* set request info  --- edit by ChenZhen(100Continue) --- end */
 /* ------------------------------------------------------- */
 
-/* parse the range info  --- edit by ChenZhen(gongyuan.cz) --- start */
+/* parse the range info  --- edit by ChenZhen(100Continue) --- start */
 
 static range_t *parseRange(file_t input_file){
     int index = 0;
@@ -2037,11 +2073,11 @@ static range_t *parseRange(file_t input_file){
             content_len = content_len - (p_len+1);
             parse_s[index].pre = (char *)malloc(p_len+1);
             strcpy(parse_s[index].pre, p);
-            parse_s[index].pre[p_len+1] = '0';
+            parse_s[index].pre[p_len+1] = 0x0;
         }else{
             parse_s[index].pre = (char *)malloc(p_len+1);
             strcpy(parse_s[index].pre, p);
-            parse_s[index].pre[p_len+1] = '0';
+            parse_s[index].pre[p_len+1] = 0x0;
 
             parse_s[index].after = (char *)malloc(1);
             memset(parse_s[index].after, 0, sizeof(parse_s[index].after));
@@ -2057,6 +2093,7 @@ static range_t *parseRange(file_t input_file){
                 p_len = strlen(p);
                 content_len = content_len - (p_len + 1);
                 parse_s[index].scope_s[rangeNum].min = atoi(p);
+				parse_s[index].scope_s[rangeNum].current = atoi(p);
             }else{
                 perror("parse input range error");
                 exit(1);
@@ -2080,14 +2117,14 @@ static range_t *parseRange(file_t input_file){
                 if(content_len <= 0){
                     parse_s[index].after = (char *)malloc(p_len + 1);
                     strcpy(parse_s[index].after, p);
-                    parse_s[index].after[p_len + 1] = '0';
+                    parse_s[index].after[p_len + 1] = 0x0;
                                        
                     parse_s[index].scope_s[rangeNum].content = (char *)malloc(1);
                     memset(parse_s[index].scope_s[rangeNum].content, 0, sizeof(parse_s[index].scope_s[rangeNum].content));
                 }else{
                     parse_s[index].scope_s[rangeNum].content = (char *)malloc(p_len + 1);
                     strcpy(parse_s[index].scope_s[rangeNum].content, p);
-                    parse_s[index].scope_s[rangeNum].content[p_len + 1] = '0';
+                    parse_s[index].scope_s[rangeNum].content[p_len + 1] = 0x0;
                 }
             }else{
                 parse_s[index].scope_s[rangeNum].content = (char *)malloc(1);
@@ -2106,10 +2143,10 @@ static range_t *parseRange(file_t input_file){
     return parse_s;
 }
 
-/* parse the range info  --- edit by ChenZhen(gongyuan.cz) --- end */
+/* parse the range info  --- edit by ChenZhen(100Continue) --- end */
 /* ------------------------------------------------------- */
 
-/* assemble these range info into one str --- edit by ChenZhen(gongyuan.cz) --- start */
+/* assemble these range info into one str --- edit by ChenZhen(100Continue) --- start */
 
 static char* assemble(range_t *range, int num){
     int index = random() % num;
@@ -2128,11 +2165,36 @@ static char* assemble(range_t *range, int num){
     return range_s;
 }
 
-/* assemble these range info into one str --- edit by ChenZhen(gongyuan.cz) --- end */
+/* assemble these range info into one str --- edit by ChenZhen(100Continue) --- end */
 /* ------------------------------------------------------- */
 
+/* assemble these range info into one str in order --- edit by ChenZhen(100Continue) --- start */
 
-/* read data from file, save content and count --- edit by ChenZhen(gongyuan.cz) --- start */
+static char* assembleInOrder(range_t *range, int num){
+    int index = random() % num;
+    int offset = 0;
+    int count = range[index].count;
+    int i = 0;
+    memset(range_s, 0, 8192);
+    offset += sprintf(range_s + offset, "%s", range[index].pre);
+    
+    for(; i < count; i++){
+        offset += sprintf(range_s + offset, "%d%s", range[index].scope_s[i].current, range[index].scope_s[i].content);
+		range[index].scope_s[i].current++;
+		if (range[index].scope_s[i].current >= range[index].scope_s[i].min + range[index].scope_s[i].extent) {
+			range[index].scope_s[i].current = range[index].scope_s[i].min;
+		}
+	}
+    
+    offset += sprintf(range_s + offset, "%s", range[index].after);
+    
+    return range_s;
+}
+
+/* assemble these range info into one str in order --- edit by ChenZhen(100Continue) --- end */
+/* ------------------------------------------------------- */
+
+/* read data from file, save content and count --- edit by ChenZhen(100Continue) --- start */
 
 static file_t read_file(const char *file)
 {
@@ -2199,7 +2261,7 @@ static file_t read_file(const char *file)
 }
 
 
-/* read data from file, --- edit by ChenZhen(gongyuan.cz) --- end */
+/* read data from file, --- edit by ChenZhen(100Continue) --- end */
 /* ------------------------------------------------------- */
 
 /* read data to POST from file, save contents and length */
@@ -2287,14 +2349,14 @@ int main(int argc, const char * const argv[])
 #endif
 
     apr_getopt_init(&opt, cntxt, argc, argv);
-    /* --- edit by ChenZhen(gongyuan.cz) */
-    while ((status = apr_getopt(opt, "J:j:O:o:L:l:Y:R:n:c:t:s:b:T:p:u:v:rMkVhwiDx:y:z:C:H:P:A:g:X:de:Sq"
+    /* --- edit by ChenZhen(100Continue) */
+    while ((status = apr_getopt(opt, "J:j:O:o:L:l:Y:R:n:c:t:s:b:T:p:u:v:raMkVhwiDx:y:z:C:H:P:A:g:X:de:Sq"
 #ifdef USE_SSL
             "Z:f:"
 #endif
             ,&c, &optarg)) == APR_SUCCESS) {
         switch (c) {
-            /* --- edit by ChenZhen(gongyuan.cz) start --- */
+            /* --- edit by ChenZhen(100Continue) start --- */
             case 'J':
                 path_file_s = read_file(optarg);
                     if(path_file_s.count == 0)
@@ -2319,7 +2381,10 @@ int main(int argc, const char * const argv[])
                 cookie_range_s = parseRange(cookie_file_s);
                 is_cookie_range = 1;
                 break;
-            case 'L':
+            case 'a':
+                is_range_in_order = 1;
+                break;
+			case 'L':
                 header_file_s = read_file(optarg);
                     if(header_file_s.count == 0)
                         exit(1);
@@ -2357,7 +2422,7 @@ int main(int argc, const char * const argv[])
             case 'M':
                 countTimes = 0;
                 break;
-            /* --- edit by ChenZhen(gongyuan.cz) end --- */
+            /* --- edit by ChenZhen(100Continue) end --- */
             case 'n':
                 requests = atoi(optarg);
                 if (requests <= 0) {
