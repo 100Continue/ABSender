@@ -139,7 +139,7 @@ typedef STACK_OF(X509) X509_STACK_TYPE;
 #define STATE_CONNECTED   2     /* we know TCP connect completed */
 #define STATE_READ        3
 
-#define CBUFFSIZE (2048)
+#define CBUFFSIZE (8192)
 
 struct connection {
     apr_pool_t *ctx;
@@ -184,6 +184,8 @@ struct data {
 
 int verbosity = 0;      /* no verbosity by default */
 int recverrok = 0;      /* ok to proceed after socket receive errors */
+enum {NO_METH = 0, GET, HEAD, PUT, POST, CUSTOM_METHOD} method = NO_METH;
+const char *method_str[] = {"bug", "GET", "HEAD", "PUT", "POST", ""};
 int posting = 0;        /* GET by default */
 int requests = 1;       /* Number of requests to make */
 int heartbeatres = 100; /* How often do we say we're alive */
@@ -370,6 +372,40 @@ static void apr_err(char *s, apr_status_t rv)
     exit(rv);
 }
 
+/*
+ * Similar to standard strstr() but we ignore case in this version.
+ * Copied from ap_strcasestr().
+ */
+static char *xstrcasestr(const char *s1, const char *s2)
+{
+    char *p1, *p2;
+    if (*s2 == '\0') {
+        /* an empty s2 */
+        return((char *)s1);
+    }
+    while(1) {
+        for ( ; (*s1 != '\0') && (apr_tolower(*s1) != apr_tolower(*s2)); s1++);
+        if (*s1 == '\0') {
+            return(NULL);
+        }
+        /* found first character of s2, see if the rest matches */
+        p1 = (char *)s1;
+        p2 = (char *)s2;
+        for (++p1, ++p2; apr_tolower(*p1) == apr_tolower(*p2); ++p1, ++p2) {
+            if (*p1 == '\0') {
+                /* both strings ended together */
+                return((char *)s1);
+            }
+        }
+        if (*p2 == '\0') {
+            /* second string ended, a match */
+            break;
+        }
+        /* didn't find a match here, try starting at next character in s1 */
+        s1++;
+    }
+    return((char *)s1);
+}
 /* --------------------------------------------------------- */
 /* write out request to a connection - assumes we can write
  * (small) request out in one go into our new socket buffer
@@ -1475,6 +1511,7 @@ static void read_connection(struct connection * c)
             }
             else {
             /* header is in invalid or too big - close connection */
+	
                 apr_pollfd_t remove_pollfd;
                 remove_pollfd.desc_type = APR_POLL_SOCKET;
                 remove_pollfd.desc.s = c->aprsock;
@@ -1494,12 +1531,23 @@ static void read_connection(struct connection * c)
                  * this is first time, extract some interesting info
                  */
                 char *p, *q;
-                p = strstr(c->cbuff, "Server:");
+				size_t len = 0;
+
+				/* 20161123 change by chenzhen */
+                //p = strstr(c->cbuff, "Server:");
+				p = xstrcasestr(c->cbuff, "Server:");
+				/* 20161123 change by chenzhen */
                 q = servername;
                 if (p) {
                     p += 8;
-                    while (*p > 32)
-                    *q++ = *p++;
+
+					/* 20161123 change by chenzhen */
+					/* -1 to not overwrite last '\0' byte */
+                    while (*p > 32 && len++ < sizeof(servername) - 1)
+                        *q++ = *p++;
+					/* 20161123 change by chenzhen */
+                    //while (*p > 32)
+                    //*q++ = *p++;
                 }
                 *q = 0;
             }
@@ -1522,16 +1570,19 @@ static void read_connection(struct connection * c)
 
             if (respcode[0] != '2') {
                 err_response++;
-				if (respcode[0] == '3')
-					err_response_3++;
-				if (respcode[0] == '4')
-					err_response_4++;
-				if (respcode[0] == '5')
-					err_response_5++;
-				if (verbosity >= 1)
+				
+				if (verbosity >= 1){
+					if (respcode[0] == '3')
+						err_response_3++;
+					if (respcode[0] == '4')
+						err_response_4++;
+					if (respcode[0] == '5')
+						err_response_5++;
+				
 					printf("WARNING: Response code not 2xx (%s)\n", respcode);
-                if (verbosity >= 2)
-                    printf("WARNING: Response code not 2xx (%s)\n", respcode);
+					
+				}
+               
             }
             else if (verbosity >= 3) {
                 printf("LOG: Response code = %s\n", respcode);
@@ -1539,23 +1590,21 @@ static void read_connection(struct connection * c)
             c->gotheader = 1;
             *s = 0;     /* terminate at end of header */
             if (keepalive &&
-            (strstr(c->cbuff, "Keep-Alive")
-             || strstr(c->cbuff, "keep-alive"))) {  /* for benefit of MSIIS */
+            (xstrcasestr(c->cbuff, "Keep-Alive")
+             || xstrcasestr(c->cbuff, "keep-alive"))) {  /* for benefit of MSIIS */
                 char *cl;
-                cl = strstr(c->cbuff, "Content-Length:");
+				c->keepalive = 1;
+                cl = xstrcasestr(c->cbuff, "Content-Length:");
                 /* handle NCSA, which sends Content-length: */
                 if (!cl)
-                    cl = strstr(c->cbuff, "Content-length:");
-                if (cl) {
-                    c->keepalive = 1;
+                    cl = xstrcasestr(c->cbuff, "Content-length:");
+                if (cl && method != HEAD) {
+                    
                     /* response to HEAD doesn't have entity body */
-                    c->length = posting >= 0 ? atoi(cl + 16) : 0;
-                }
-                /* The response may not have a Content-Length header */
-                if (!cl) {
-                    c->keepalive = 1;
-                    c->length = 0; 
-                }
+                    c->length = atoi(cl + 16);
+                }else{
+					c->length = 0;
+				}
             }
             c->bread += c->cbx - (s + l - c->cbuff) + r - tocopy;
             totalbread += c->bread;
